@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "reflekt-registry"
+version = "0.1.0"
+description = ""
+authors = ["Greg Clunies <greg.clunies@gmail.com>"]
+readme = "README.md"
+packages = [{include = "reflekt_registry"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+chalice = "^1.27.3"
+
+[tool.poetry.group.dev.dependencies]
+boto3 = "^1.26.87"
+moto = "^4.1.4"
+black = "^23.1.0"
+autoflake = "^2.0.1"
+isort = "^5.12.0"
+make = "^0.1.6.post2"
+mypy = "^1.1.1"
+flake8-docstrings = "^1.7.0"
+darglint = "^1.8.1"
+toml = "^0.10.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
