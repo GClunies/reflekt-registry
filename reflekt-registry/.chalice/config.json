@@ -3,7 +3,11 @@
   "app_name": "reflekt-registry",
   "stages": {
     "dev": {
-      "api_gateway_stage": "api"
+      "api_gateway_stage": "api",
+      "environment_variables": {
+        "REGISTRY_BUCKET_NAME": "reflekt-registry",
+        "SEGMENT_WRITE_KEY": "lwbDU8gfUFNfUrL8F3lWuCyhDtFstLiH"
+      }
     }
   }
 }
