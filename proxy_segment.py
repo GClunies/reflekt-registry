@@ -18,6 +18,8 @@ segment_analytics.debug = True
 segment_analytics.on_error = on_error
 
 # TODO - figure out how to proxy the track call to the reflekt-registry REST API
+# https://www.nickearl.net/2018/11/10/how-to-proxy-segment-tracking-through-charles/
+# https://www.scrapingbee.com/blog/python-requests-proxy/
 
 if __name__ == "__main__":
     print("Tracking...")
@@ -26,6 +28,4 @@ if __name__ == "__main__":
         "test_event",
         {"test_property": "test_value"},
     )
-    print("Flushing...")
-    segment_analytics.flush()
     print("Done.")
