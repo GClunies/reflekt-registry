@@ -2,7 +2,8 @@ import boto3
 import segment.analytics as segment_analytics
 from chalice import Chalice
 from dateutil import parser
-from segment.analytics.request import APIError
+
+# from segment.analytics.request import APIError
 
 app = Chalice(app_name="reflekt-registry")
 app.debug = True
