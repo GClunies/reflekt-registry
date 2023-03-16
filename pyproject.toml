@@ -11,6 +11,7 @@ python = "^3.9"
 chalice = "^1.27.3"
 httpie = "^3.2.1"
 segment-analytics-python = "^2.2.2"
+python-dateutil = "^2.8.2"
 
 [tool.poetry.group.dev.dependencies]
 boto3 = "^1.26.87"

@@ -1,6 +1,8 @@
 import boto3
 import segment.analytics as segment_analytics
 from chalice import Chalice
+from dateutil import parser
+from segment.analytics.request import APIError
 
 app = Chalice(app_name="reflekt-registry")
 app.debug = True
@@ -34,18 +36,33 @@ def index():
     return "Hi from Reflekt!"
 
 
+def validate_event_json():
+    """Validate event JSON properties against schema stored in registry.
+
+    Returns:
+        bool: True if valid, False otherwise.
+    """
+    # TODO - validate the event JSON
+    pass
+
+
 @app.route("/v1/batch", methods=["POST"])
-def segment_proxy(event, context):  # TODO - looks at this later for test_app.py
+def proxy_segment_v1_batch():
     """Forward the event from Lambda API proxy to Segment.
 
     Returns:
         dict: The forwarded event.
     """
-    event_json = app.current_request.json_body
-    segment_analytics.track(
-        event_json["userId"],
-        event_json["event"],
-        event_json["properties"],
-    )
-    segment_analytics.flush()  # Required to send the event to Segment
-    return event_json
+    tracks = app.current_request.json_body["batch"]
+
+    for track in tracks:  # Queue up the events
+        segment_analytics.track(
+            event=track.get("event", None),
+            anonymous_id=track.get("anonymousId", None),
+            user_id=track.get("userId", None),
+            context=track.get("context", {}),
+            timestamp=parser.parse(track.get("timestamp", None)),
+            integrations=track.get("integrations", {}),
+        )
+
+    segment_analytics.flush()  # Flush queued events to Segment
