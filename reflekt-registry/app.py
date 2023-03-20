@@ -50,16 +50,23 @@ class S3SchemaRegistry:
         if tmp_file.exists():
             with open(tmp_file, "r") as schema_file:
                 schema = json.load(schema_file)
+
+            app.log.debug(f"Found schema in cache: {str(tmp_file)}")
+
         else:
             response = self._client.get_object(Bucket=bucket, Key=key)
             content = response["Body"].read().decode("utf-8")
             schema = json.loads(content)
+
+            app.log.debug(f"Found schema bucket: {bucket} at path: {key}")
 
             if not tmp_file.parent.exists():
                 tmp_file.parent.mkdir(parents=True)
 
             with open(tmp_file, "w") as schema_file:  # Cache locally
                 json.dump(schema, schema_file)
+
+            app.log.debug(f"Cached schema locally at: {str(tmp_file)}")
 
         return schema
 
@@ -68,7 +75,7 @@ def get_schema_registry() -> S3SchemaRegistry:
     """Get the schema registry.
 
     Returns:
-        SchemaRegistry: The schema registry.
+        S3SchemaRegistry: The S3 schema registry.
     """
     global _SCHEMA_REGISTRY
 
@@ -105,12 +112,19 @@ def validate_properties(schema_id: str, properties: dict):
     schema = schema_registry.get_schema(schema_id)
     app.log.debug(f"SCHEMA PROPERTIES: {schema['properties']}")
     app.log.debug(f"EVENT PROPERTIES: {properties}")
+
+    # TODO - some sort of manual check that the schema_id is valid.
+    # JSON validator doesn't like slashes in constants
+    # Need to remove the schema_id from the properties before validating rest of properties
+
     validator = Draft7Validator(schema=schema)
 
-    if not validator.is_valid(instance=properties):
+    app.log.debug(f"IS VALID: {validator.is_valid(properties)}")
+
+    if not validator.is_valid(properties):
         errors = [
-            f"{error.absolute_path[0]}: {error.message}"
-            for error in validator.iter_errors(instance=properties)
+            f"{error.message}"
+            for error in sorted(validator.iter_errors(properties), key=str)
         ]
         return False, errors
     else:
