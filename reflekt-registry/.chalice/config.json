@@ -5,10 +5,13 @@
         "dev": {
             "api_gateway_stage": "api",
             "environment_variables": {
-                "REGISTRY_TABLE": "reflekt_registry",
-                "SEGMENT_WRITE_KEY": "lwbDU8gfUFNfUrL8F3lWuCyhDtFstLiH",
+                "REGISTRY_BUCKET": "reflekt-registry",
+                "SEGMENT_WRITE_KEY": "8ziNW9W9rkmyDQLGjc5Voe36PFmhXxGC",
+                "SEGMENT_WRITE_KEY_INVALID": "l6LNoFfNmuVhi9kEhsnAbz49VsHm0AmG",
                 "DEBUG": "true"
             }
         }
     }
 }
+
+

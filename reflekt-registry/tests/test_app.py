@@ -25,6 +25,9 @@ def test_proxy_segment_v1_batch():
     response = segment_analytics.track(
         user_id="test_user_1",
         event="test_event",
-        properties={"test_property": "test_value"},
+        properties={
+            "schema_id": "segment/demo/Test_event/1-0.json",
+            "test_property": "test_value",
+        },
     )
     assert response is None  # Returns None if tracks were successful
