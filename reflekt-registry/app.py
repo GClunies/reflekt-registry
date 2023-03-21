@@ -4,12 +4,14 @@ from datetime import datetime
 from pathlib import Path
 
 import boto3
-import segment.analytics as segment_analytics
+
+# import segment.analytics as segment_analytics
 from chalice import Chalice
 
 # from chalicelib.schema_registry import S3SchemaRegistry
 from dateutil import parser
 from jsonschema import Draft7Validator
+from segment.analytics import Client as SegmentClient
 
 # from segment.analytics.request import APIError
 
@@ -21,6 +23,34 @@ _SCHEMA_REGISTRY = None
 _SUPPORTED_SCHEMA_EXTENSIONS = [".json"]
 
 
+# Segment Configuration
+def log_segment_error(error):
+    """Log debugging error for Segment. Passed to Segment client.
+
+    Args:
+        error (Any): The error.
+    """
+    app.log.error("An error occurred sending events to Segment:", error)
+
+
+SEGMENT_WRITE_KEY = os.environ.get("SEGMENT_WRITE_KEY")
+SEGMENT_WRITE_KEY_INVALID = os.environ.get("SEGMENT_WRITE_KEY_INVALID")
+
+
+valid_client = SegmentClient(
+    SEGMENT_WRITE_KEY,
+    debug=True if app.debug else False,
+    on_error=log_segment_error,
+)
+
+invalid_client = SegmentClient(
+    SEGMENT_WRITE_KEY_INVALID,
+    debug=True if app.debug else False,
+    on_error=log_segment_error,
+)
+
+
+# Schema Registry
 class S3SchemaRegistry:
     """Class for interacting with a simple S3 schema registry."""
 
@@ -48,7 +78,7 @@ class S3SchemaRegistry:
         app.log.debug(f"TMP_FILE: {str(tmp_file)}")
 
         if tmp_file.exists():
-            with open(tmp_file, "r") as schema_file:
+            with open(tmp_file, "r", encoding="utf-8") as schema_file:
                 schema = json.load(schema_file)
 
             app.log.debug(f"Found schema in cache: {str(tmp_file)}")
@@ -63,7 +93,7 @@ class S3SchemaRegistry:
             if not tmp_file.parent.exists():
                 tmp_file.parent.mkdir(parents=True)
 
-            with open(tmp_file, "w") as schema_file:  # Cache locally
+            with open(tmp_file, "w", encoding="utf-8") as schema_file:  # Cache locally
                 json.dump(schema, schema_file)
 
             app.log.debug(f"Cached schema locally at: {str(tmp_file)}")
@@ -97,12 +127,12 @@ def index():
     return "🪞 Reflekt registry running! 🪞"
 
 
-def validate_properties(schema_id: str, properties: dict):
+def validate_properties(schema_id: str, event_properties: dict):
     """Validate event properties against schema in registry.
 
     Args:
         schema_id (str): The schema ID.
-        properties (dict): The event properties.
+        event_properties (dict): The event properties.
 
     Returns:
         bool: True if valid, False otherwise.
@@ -110,39 +140,26 @@ def validate_properties(schema_id: str, properties: dict):
     errors = []
     schema_registry = get_schema_registry()
     schema = schema_registry.get_schema(schema_id)
-    app.log.debug(f"SCHEMA PROPERTIES: {schema['properties']}")
-    app.log.debug(f"EVENT PROPERTIES: {properties}")
 
-    # TODO - some sort of manual check that the schema_id is valid.
-    # JSON validator doesn't like slashes in constants
-    # Need to remove the schema_id from the properties before validating rest of properties
+    # HACK:
+    # For unknown reasons, validator.is_valid() errors when validating
+    # against the schema_id property (something to di with backslashes at start
+    # and end fo string). This is a workaround to remove the schema_id from
+    # the schema and event properties before validating.
+    schema["properties"].pop("schema_id", None)
+    schema["required"] = [prop for prop in schema["required"] if prop != "schema_id"]
+    event_properties.pop("schema_id", None)
 
     validator = Draft7Validator(schema=schema)
 
-    app.log.debug(f"IS VALID: {validator.is_valid(properties)}")
-
-    if not validator.is_valid(properties):
+    if not validator.is_valid(event_properties):
         errors = [
             f"{error.message}"
-            for error in sorted(validator.iter_errors(properties), key=str)
+            for error in sorted(validator.iter_errors(event_properties), key=str)
         ]
         return False, errors
     else:
         return True, errors
-
-
-def log_segment_error(error):
-    """Log debugging error for Segment. Passed to Segment client.
-
-    Args:
-        error (Any): The error.
-    """
-    app.log.error("An error occurred sending events to Segment:", error)
-
-
-# Configure the Segment client
-segment_analytics.debug = True if app.debug else False
-segment_analytics.on_error = log_segment_error
 
 
 @app.route("/v1/batch", methods=["POST"])
@@ -166,15 +183,13 @@ def proxy_segment_v1_batch() -> None:
 
         # Get the schema ID from the event properties
         schema_id = properties.get("schema_id", None)
-        app.log.debug(f"Schema ID: {schema_id}")
         # Validate the event properties against the schema from the registry
         is_valid, schema_errors = validate_properties(
-            schema_id=schema_id, properties=properties
+            schema_id=schema_id, event_properties=properties
         )
 
         if is_valid:
-            segment_analytics.write_key = os.environ.get("SEGMENT_WRITE_KEY", "")
-            segment_analytics.track(
+            valid_client.track(
                 event=event,
                 anonymous_id=anonymous_id,
                 user_id=user_id,
@@ -183,15 +198,11 @@ def proxy_segment_v1_batch() -> None:
                 integrations=integrations,
                 properties=properties,
             )
-            segment_analytics.flush()  # Flush queued events to Segment
+            valid_client.flush()  # Shutdown the client
 
         else:
-            segment_analytics.write_key = os.environ.get(
-                "SEGMENT_WRITE_KEY_INVALID", ""
-            )
-            # Append schema errors to event properties
             properties["validation_errors"] = schema_errors
-            segment_analytics.track(
+            invalid_client.track(
                 event=event,
                 anonymous_id=anonymous_id,
                 user_id=user_id,
@@ -200,4 +211,4 @@ def proxy_segment_v1_batch() -> None:
                 integrations=integrations,
                 properties=properties,
             )
-            segment_analytics.flush()  # Flush queued events to Segment
+            invalid_client.flush()  # Shutdown the client
