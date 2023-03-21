@@ -6,8 +6,6 @@ from pprint import pprint
 
 import boto3
 from chalice import Chalice
-
-# from chalicelib.schema_registry import S3SchemaRegistry
 from dateutil import parser
 from jsonschema import Draft7Validator
 from segment.analytics import Client as SegmentClient
@@ -88,7 +86,7 @@ class S3SchemaRegistry:
             app.log.debug("Loaded schema from cache. Schema is:")
             pprint(schema) if app.debug else None  # Pretty print schema
 
-        else:
+        else:  # Load schema from S3
             app.log.debug(
                 f"Get schema from S3 bucket: {_REGISTRY_BUCKET} at path: {key}"
             )
@@ -104,7 +102,8 @@ class S3SchemaRegistry:
 
             app.log.debug(f"Caching schema at: {str(tmp_file)}")
 
-            with open(tmp_file, "w", encoding="utf-8") as schema_file:  # Cache locally
+            # Cache schema locally for future use
+            with open(tmp_file, "w", encoding="utf-8") as schema_file:
                 json.dump(schema, schema_file)
 
             app.log.debug("Cached schema for future use")
@@ -129,17 +128,7 @@ def get_schema_registry() -> S3SchemaRegistry:
     return _SCHEMA_REGISTRY
 
 
-# API routes
-@app.route("/")
-def index():
-    """Return a welcome message.
-
-    Returns:
-        str: The welcome message.
-    """
-    return "🪞 Reflekt registry running! 🪞"
-
-
+# ----- SCHEMA VALIDATION -----
 def validate_properties(schema_id: str, event_properties: dict):
     """Validate event properties against the schema in the registry.
 
@@ -173,6 +162,17 @@ def validate_properties(schema_id: str, event_properties: dict):
         return False, errors
     else:
         return True, errors
+
+
+# ----- API ROUTES -----
+@app.route("/")
+def index():
+    """Return a welcome message.
+
+    Returns:
+        str: The welcome message.
+    """
+    return "🪞 Reflekt registry running! 🪞"
 
 
 @app.route("/v1/batch", methods=["POST"])
