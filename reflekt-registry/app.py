@@ -212,7 +212,6 @@ def proxy_segment_v1_batch() -> None:
                 integrations=integrations,
                 properties=properties,
             )
-            valid_client.flush()  # Shutdown the client
 
         else:
             properties["validation_errors"] = schema_errors
@@ -225,4 +224,7 @@ def proxy_segment_v1_batch() -> None:
                 integrations=integrations,
                 properties=properties,
             )
-            invalid_client.flush()  # Shutdown the client
+
+    # Flush clients after processing all events
+    valid_client.flush()
+    invalid_client.flush()
