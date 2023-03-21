@@ -2,10 +2,9 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from pprint import pprint
 
 import boto3
-
-# import segment.analytics as segment_analytics
 from chalice import Chalice
 
 # from chalicelib.schema_registry import S3SchemaRegistry
@@ -13,55 +12,62 @@ from dateutil import parser
 from jsonschema import Draft7Validator
 from segment.analytics import Client as SegmentClient
 
-# from segment.analytics.request import APIError
-
-# COnfigure AWS Chalice app
+# ----- AWS CHALICE APP CONFIG -----
 app = Chalice(app_name="reflekt-registry")
 app.debug = True if os.environ.get("DEBUG") == "true" else False
 
 _SCHEMA_REGISTRY = None
-_SUPPORTED_SCHEMA_EXTENSIONS = [".json"]
+_REGISTRY_BUCKET = os.environ.get("REGISTRY_BUCKET")
 
 
-# Segment Configuration
+# ----- SEGMENT CLIENT CONFIGURATION -----
 def log_segment_error(error):
-    """Log debugging error for Segment. Passed to Segment client.
+    """Log Segment error for debugging.
+
+    This function is passed to the Segment client as the on_error callback.
 
     Args:
-        error (Any): The error.
+        error (Any): The Segment error.
     """
     app.log.error("An error occurred sending events to Segment:", error)
 
 
-SEGMENT_WRITE_KEY = os.environ.get("SEGMENT_WRITE_KEY")
-SEGMENT_WRITE_KEY_INVALID = os.environ.get("SEGMENT_WRITE_KEY_INVALID")
+_SEGMENT_WRITE_KEY_VALID = os.environ.get("SEGMENT_WRITE_KEY")
+_SEGMENT_WRITE_KEY_INVALID = os.environ.get("SEGMENT_WRITE_KEY_INVALID")
 
 
 valid_client = SegmentClient(
-    SEGMENT_WRITE_KEY,
+    _SEGMENT_WRITE_KEY_VALID,
     debug=True if app.debug else False,
     on_error=log_segment_error,
 )
 
 invalid_client = SegmentClient(
-    SEGMENT_WRITE_KEY_INVALID,
+    _SEGMENT_WRITE_KEY_INVALID,
     debug=True if app.debug else False,
     on_error=log_segment_error,
 )
 
 
-# Schema Registry
+# ----- S3 SCHEMA REGISTRY -----
 class S3SchemaRegistry:
-    """Class for interacting with a simple S3 schema registry."""
+    """Class to interface with a schema registry hosted in S3.
+
+    Here, the schema registry is simply an S3 bucket with a folder structure
+    mimicking a reflekt project (https://github.com/GClunies/Reflekt). Schemas
+    are accessed by their schema ID.
+
+    This class also handles local caching of schemas for performance.
+    """
 
     def __init__(self):
-        """Initialize the S3SchemaRegistry class."""
+        """Initialize an S3 client."""
         self._client = boto3.client("s3")
 
     def get_schema(self, schema_id: str) -> dict:
-        """Get the schema from local cache or schema registry.
+        """Get corresponding schema from schema registry for a given schema ID.
 
-        Schemas are cached locally in /tmp/<schema_id>.json for performance.
+        For performance, schemas are cached locally in /tmp/<schema_id>.json.
 
         Args:
             schema_id (str): The schema ID.
@@ -69,43 +75,50 @@ class S3SchemaRegistry:
         Returns:
             dict: The schema.
         """
-        bucket = os.environ.get("REGISTRY_BUCKET")
+        app.log.debug(f"Searching schema registry for schema ID: {schema_id}")
         key = f"schemas/{schema_id}"
         tmp_file = Path(f"/tmp/{schema_id}")
 
-        app.log.debug(f"BUCKET: {bucket}")
-        app.log.debug(f"KEY: {key}")
-        app.log.debug(f"TMP_FILE: {str(tmp_file)}")
+        if tmp_file.exists():  # Load schema from cache
+            app.log.debug(f"Get schema from cache at: {str(tmp_file)}")
 
-        if tmp_file.exists():
-            with open(tmp_file, "r", encoding="utf-8") as schema_file:
+            with tmp_file.open("r", encoding="utf-8") as schema_file:
                 schema = json.load(schema_file)
 
-            app.log.debug(f"Found schema in cache: {str(tmp_file)}")
+            app.log.debug("Loaded schema from cache. Schema is:")
+            pprint(schema) if app.debug else None  # Pretty print schema
 
         else:
-            response = self._client.get_object(Bucket=bucket, Key=key)
+            app.log.debug(
+                f"Get schema from S3 bucket: {_REGISTRY_BUCKET} at path: {key}"
+            )
+            response = self._client.get_object(Bucket=_REGISTRY_BUCKET, Key=key)
             content = response["Body"].read().decode("utf-8")
             schema = json.loads(content)
 
-            app.log.debug(f"Found schema bucket: {bucket} at path: {key}")
+            app.log.debug("Loaded schema from S3. Schema is:")
+            pprint(schema) if app.debug else None  # Pretty print schema
 
             if not tmp_file.parent.exists():
                 tmp_file.parent.mkdir(parents=True)
 
+            app.log.debug(f"Caching schema at: {str(tmp_file)}")
+
             with open(tmp_file, "w", encoding="utf-8") as schema_file:  # Cache locally
                 json.dump(schema, schema_file)
 
-            app.log.debug(f"Cached schema locally at: {str(tmp_file)}")
+            app.log.debug("Cached schema for future use")
 
         return schema
 
 
 def get_schema_registry() -> S3SchemaRegistry:
-    """Get the schema registry.
+    """Get an instance of S3SchemaRegistry class, initializing if necessary.
+
+    S3SchemaRegistry is used to access schemas from S3 via boto3 S3 client.
 
     Returns:
-        S3SchemaRegistry: The S3 schema registry.
+        S3SchemaRegistry: Instance of S3SchemaRegistry class.
     """
     global _SCHEMA_REGISTRY
 
@@ -128,7 +141,7 @@ def index():
 
 
 def validate_properties(schema_id: str, event_properties: dict):
-    """Validate event properties against schema in registry.
+    """Validate event properties against the schema in the registry.
 
     Args:
         schema_id (str): The schema ID.
@@ -168,18 +181,18 @@ def proxy_segment_v1_batch() -> None:
     tracks = app.current_request.json_body["batch"]
 
     for track in tracks:  # Queue up the events
-        event = track.get("event", None)
-        anonymous_id = track.get("anonymousId", None)
-        user_id = track.get("userId", None)
+        event = track.get("event")
+        anonymous_id = track.get("anonymousId")
+        user_id = track.get("userId")
         context = track.get("context", {})
         integrations = track.get("integrations", {})
         properties = track.get("properties", {})
-        # timestamp = parser.parse(track.get("timestamp", None))
 
-        if app.debug:
+        # For local debugging, don't require timestamp in the request. Set for developer
+        if app.debug and track.get("timestamp") is None:
             timestamp = datetime.now()
         else:
-            timestamp = parser.parse(track.get("timestamp", None))
+            timestamp = parser.parse(track.get("timestamp"))
 
         # Get the schema ID from the event properties
         schema_id = properties.get("schema_id", None)
@@ -188,6 +201,7 @@ def proxy_segment_v1_batch() -> None:
             schema_id=schema_id, event_properties=properties
         )
 
+        # Send the event to the appropriate Segment source based on validation
         if is_valid:
             valid_client.track(
                 event=event,
