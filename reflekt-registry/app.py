@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 from datetime import datetime
@@ -30,7 +31,7 @@ def log_segment_error(error):
     app.log.error("An error occurred sending events to Segment:", error)
 
 
-_SEGMENT_WRITE_KEY_VALID = os.environ.get("SEGMENT_WRITE_KEY")
+_SEGMENT_WRITE_KEY_VALID = os.environ.get("SEGMENT_WRITE_KEY_VALID")
 _SEGMENT_WRITE_KEY_INVALID = os.environ.get("SEGMENT_WRITE_KEY_INVALID")
 
 
@@ -145,19 +146,20 @@ def validate_properties(schema_id: str, event_properties: dict):
 
     # HACK:
     # For unknown reasons, validator.is_valid() errors when validating
-    # against the schema_id property (something to di with backslashes at start
-    # and end fo string). This is a workaround to remove the schema_id from
-    # the schema and event properties before validating.
+    # against the schema_id property. schema_id is used to just get the correct
+    # schema from the registry, so it is not _actually_ needed for validation.
+    # So we remove it from the schema and event properties before validating.
     schema["properties"].pop("schema_id", None)
     schema["required"] = [prop for prop in schema["required"] if prop != "schema_id"]
-    event_properties.pop("schema_id", None)
+    tmp_event_properties = copy.deepcopy(event_properties)
+    tmp_event_properties.pop("schema_id", None)
 
     validator = Draft7Validator(schema=schema)
 
-    if not validator.is_valid(event_properties):
+    if not validator.is_valid(tmp_event_properties):
         errors = [
             f"{error.message}"
-            for error in sorted(validator.iter_errors(event_properties), key=str)
+            for error in sorted(validator.iter_errors(tmp_event_properties), key=str)
         ]
         return False, errors
     else:

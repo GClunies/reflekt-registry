@@ -1,4 +1,0 @@
-- [ ] Write auth.py to handle authentication
-- [ ] Write db.py to handle schema registry db. Options could be:
-    -  s3
-    -  dynamodb
