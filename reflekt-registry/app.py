@@ -1,4 +1,5 @@
 import copy
+import io
 import json
 import os
 from datetime import datetime
@@ -28,20 +29,20 @@ def log_segment_error(error):
     Args:
         error (Any): The Segment error.
     """
-    app.log.error("An error occurred sending events to Segment:", error)
+    app.log.error("Segment error:", error)
 
 
 _SEGMENT_WRITE_KEY_VALID = os.environ.get("SEGMENT_WRITE_KEY_VALID")
 _SEGMENT_WRITE_KEY_INVALID = os.environ.get("SEGMENT_WRITE_KEY_INVALID")
 
 
-valid_client = SegmentClient(
+valid_s3_client = SegmentClient(
     _SEGMENT_WRITE_KEY_VALID,
     debug=True if app.debug else False,
     on_error=log_segment_error,
 )
 
-invalid_client = SegmentClient(
+invalid_s3_client = SegmentClient(
     _SEGMENT_WRITE_KEY_INVALID,
     debug=True if app.debug else False,
     on_error=log_segment_error,
@@ -61,7 +62,7 @@ class S3SchemaRegistry:
 
     def __init__(self):
         """Initialize an S3 client."""
-        self._client = boto3.client("s3")
+        self._s3_client = boto3.client("s3")
 
     def get_schema(self, schema_id: str) -> dict:
         """Get corresponding schema from schema registry for a given schema ID.
@@ -75,39 +76,20 @@ class S3SchemaRegistry:
             dict: The schema.
         """
         app.log.debug(f"Searching schema registry for schema ID: {schema_id}")
-        key = f"schemas/{schema_id}"
-        tmp_file = Path(f"/tmp/{schema_id}")
+        object_key = f"schemas/{schema_id}"
 
-        if tmp_file.exists():  # Load schema from cache
-            app.log.debug(f"Get schema from cache at: {str(tmp_file)}")
+        app.log.debug(
+            f"Get schema from S3 bucket: {_REGISTRY_BUCKET} at path: {object_key}"
+        )
+        bytes_buffer = io.BytesIO()
+        self._s3_client.download_fileobj(
+            Bucket=_REGISTRY_BUCKET, Key=object_key, Fileobj=bytes_buffer
+        )
+        byte_value = bytes_buffer.getvalue()
+        schema = json.loads(byte_value.decode("utf-8"))
 
-            with tmp_file.open("r", encoding="utf-8") as schema_file:
-                schema = json.load(schema_file)
-
-            app.log.debug("Loaded schema from cache. Schema is:")
-            pprint(schema) if app.debug else None  # Pretty print schema
-
-        else:  # Load schema from S3
-            app.log.debug(
-                f"Get schema from S3 bucket: {_REGISTRY_BUCKET} at path: {key}"
-            )
-            response = self._client.get_object(Bucket=_REGISTRY_BUCKET, Key=key)
-            content = response["Body"].read().decode("utf-8")
-            schema = json.loads(content)
-
-            app.log.debug("Loaded schema from S3. Schema is:")
-            pprint(schema) if app.debug else None  # Pretty print schema
-
-            if not tmp_file.parent.exists():
-                tmp_file.parent.mkdir(parents=True)
-
-            app.log.debug(f"Caching schema at: {str(tmp_file)}")
-
-            # Cache schema locally for future use
-            with open(tmp_file, "w", encoding="utf-8") as schema_file:
-                json.dump(schema, schema_file)
-
-            app.log.debug("Cached schema for future use")
+        app.log.debug("Loaded schema from S3. Schema is:")
+        pprint(schema) if app.debug else None  # Pretty print schema
 
         return schema
 
@@ -143,23 +125,12 @@ def validate_properties(schema_id: str, event_properties: dict):
     errors = []
     schema_registry = get_schema_registry()
     schema = schema_registry.get_schema(schema_id)
-
-    # HACK:
-    # For unknown reasons, validator.is_valid() errors when validating
-    # against the schema_id property. schema_id is used to just get the correct
-    # schema from the registry, so it is not _actually_ needed for validation.
-    # So we remove it from the schema and event properties before validating.
-    schema["properties"].pop("schema_id", None)
-    schema["required"] = [prop for prop in schema["required"] if prop != "schema_id"]
-    tmp_event_properties = copy.deepcopy(event_properties)
-    tmp_event_properties.pop("schema_id", None)
-
     validator = Draft7Validator(schema=schema)
 
-    if not validator.is_valid(tmp_event_properties):
+    if not validator.is_valid(event_properties):
         errors = [
             f"{error.message}"
-            for error in sorted(validator.iter_errors(tmp_event_properties), key=str)
+            for error in sorted(validator.iter_errors(event_properties), key=str)
         ]
         return False, errors
     else:
@@ -177,7 +148,7 @@ def index():
     return "🪞 Reflekt registry running! 🪞"
 
 
-@app.route("/v1/batch", methods=["POST"])
+@app.route("/validate", methods=["POST"])
 def proxy_segment_v1_batch() -> None:
     """Forward the event from Lambda API proxy to Segment."""
     tracks = app.current_request.json_body["batch"]
@@ -189,6 +160,7 @@ def proxy_segment_v1_batch() -> None:
         context = track.get("context", {})
         integrations = track.get("integrations", {})
         properties = track.get("properties", {})
+        app.log.debug(f"Event properties are: {properties}")
 
         # For local debugging, don't require timestamp in the request. Set for developer
         if app.debug and track.get("timestamp") is None:
@@ -205,7 +177,7 @@ def proxy_segment_v1_batch() -> None:
 
         # Send the event to the appropriate Segment source based on validation
         if is_valid:
-            valid_client.track(
+            valid_s3_client.track(
                 event=event,
                 anonymous_id=anonymous_id,
                 user_id=user_id,
@@ -217,7 +189,7 @@ def proxy_segment_v1_batch() -> None:
 
         else:
             properties["validation_errors"] = schema_errors
-            invalid_client.track(
+            invalid_s3_client.track(
                 event=event,
                 anonymous_id=anonymous_id,
                 user_id=user_id,
@@ -228,5 +200,5 @@ def proxy_segment_v1_batch() -> None:
             )
 
     # Flush clients after processing all events
-    valid_client.flush()
-    invalid_client.flush()
+    valid_s3_client.flush()
+    invalid_s3_client.flush()
