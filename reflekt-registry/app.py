@@ -40,8 +40,8 @@ logger.configure(  # Loguru config
 
 
 # Segment Clients Config
-SEGMENT_CONSUMER_WRITE_KEY = os.environ.get("SEGMENT_CONSUMER_WRITE_KEY")
-SEGMENT_DEAD_LETTER_WRITE_KEY = os.environ.get("SEGMENT_DEAD_LETTER_WRITE_KEY")
+VALID_SEGMENT_WRITE_KEY = os.environ.get("VALID_SEGMENT_WRITE_KEY")
+INVALID_SEGMENT_WRITE_KEY = os.environ.get("INVALID_SEGMENT_WRITE_KEY")
 
 
 def log_segment_error(error):
@@ -56,15 +56,15 @@ def log_segment_error(error):
 
 
 # Send valid events to this Segment source
-segment_consumer = SegmentClient(
-    SEGMENT_CONSUMER_WRITE_KEY,
+segment_client_valid = SegmentClient(
+    VALID_SEGMENT_WRITE_KEY,
     debug=DEBUG,
     on_error=log_segment_error,
 )
 
 # Send invalid events to this Segment source
-segment_dead_letter = SegmentClient(
-    SEGMENT_DEAD_LETTER_WRITE_KEY,
+segment_client_invalid = SegmentClient(
+    INVALID_SEGMENT_WRITE_KEY,
     debug=DEBUG,
     on_error=log_segment_error,
 )
@@ -81,15 +81,18 @@ def index():
     return "🪞 Reflekt registry running! 🪞"
 
 
-@app.route("/validate/segment", methods=["POST"])
+@app.route("/v1/batch", methods=["POST"])
 def validate_segment() -> None:
-    """Validate Segment event(s) and forward to Segment.
+    """Validate Segment event(s) and forward to Segment Consumer.
 
     Validated events are sent to the Segment source specified by the
     SEGMENT_WRITE_KEY_VALID environment variable.
 
     Invalid events are sent to the Segment source specified by the
     SEGMENT_WRITE_KEY_INVALID environment variable.
+
+    Returns:
+        None: The response is sent to the Segment source.
     """
     tracks = app.current_request.json_body["batch"]
     logger.debug(f"Received {len(tracks)} events. Beginning validation...")
@@ -122,9 +125,9 @@ def validate_segment() -> None:
             if is_valid:  # Send to valid Segment source
                 logger.debug(
                     f"Event '{track['event']}' PASSED validation. "
-                    f"Sending to Segment consumer source..."
+                    f"Sending to VALID Segment source..."
                 )
-                segment_consumer.track(
+                segment_client_valid.track(
                     event=event,
                     anonymous_id=anonymous_id,
                     user_id=user_id,
@@ -137,10 +140,10 @@ def validate_segment() -> None:
             else:  # Send to invalid Segment source
                 logger.debug(
                     f"Event '{track['event']}' FAILED validation. "
-                    f"Sending to Segment dead-letter source..."
+                    f"Sending to INVALID Segment source..."
                 )
                 properties["validation_errors"] = schema_errors
-                segment_dead_letter.track(
+                segment_client_invalid.track(
                     event=event,
                     anonymous_id=anonymous_id,
                     user_id=user_id,
@@ -153,11 +156,11 @@ def validate_segment() -> None:
         else:
             logger.error(
                 f"Event '{track['event']}' missing required property `schema_id`. "
-                f"Sending to Segment dead letter source ..."
+                f"Sending to INVALID Segment source..."
             )
             schema_errors = {"'schema_id' is a required property"}
             properties["validation_errors"] = schema_errors
-            segment_dead_letter.track(
+            segment_client_invalid.track(
                 event=track.get("event"),
                 anonymous_id=track.get("anonymousId"),
                 user_id=track.get("userId"),
@@ -169,8 +172,8 @@ def validate_segment() -> None:
 
     # Flush clients after processing all events
     logger.debug("Flushing Segment clients...")
-    segment_consumer.flush()
-    segment_dead_letter.flush()
+    segment_client_valid.flush()
+    segment_client_invalid.flush()
     logger.debug("Done!")
 
     return None
