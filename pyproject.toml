@@ -9,6 +9,12 @@ packages = [{include = "reflekt_registry"}]
 [tool.poetry.dependencies]
 python = "^3.9"
 chalice = "^1.27.3"
+httpie = "^3.2.1"
+segment-analytics-python = "^2.2.2"
+python-dateutil = "^2.8.2"
+jsonschema = "^4.17.3"
+loguru = "^0.6.0"
+rich = "^13.3.2"
 
 [tool.poetry.group.dev.dependencies]
 boto3 = "^1.26.87"
@@ -21,6 +27,7 @@ mypy = "^1.1.1"
 flake8-docstrings = "^1.7.0"
 darglint = "^1.8.1"
 toml = "^0.10.2"
+pytest = "^7.2.2"
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,14 +1,21 @@
+# Allows Make commands to be run from root of repo
 .PHONY: format
 format:
-	@autoflake --remove-all-unused-imports --remove-unused-variables --ignore-init-module-imports --recursive --in-place ./registry
-	@isort ./registry
-	@black ./registry
+	@autoflake --remove-all-unused-imports --remove-unused-variables --ignore-init-module-imports --recursive --in-place ./reflekt-registry
+	@isort ./reflekt-registry
+	@black ./reflekt-registry
 
 .PHONY: lint
 lint:
-	@flake8 ./registry
-	@black --check ./registry
+	@flake8 ./reflekt-registry
+	@black --check ./reflekt-registry
 
 .PHONY: type-check
 type-check:
-	@mypy ./registry
+	@mypy ./reflekt-registry
+
+.PHONY: requirements
+requirements:
+	@poetry export --without-hashes > ./reflekt-registry/requirements.txt
+	@echo ""
+	@echo "Successfully generated requirements.txt"

@@ -1,0 +1,18 @@
+{
+    "version": "2.0",
+    "app_name": "reflekt-registry",
+    "stages": {
+        "dev": {
+            "api_gateway_stage": "api",
+            "environment_variables": {
+                "REGISTRY_BUCKET": "reflekt-registry",
+                "REGISTRY_BUCKET_REGION": "us-west-1",
+                "SEGMENT_CONSUMER_WRITE_KEY": "8ziNW9W9rkmyDQLGjc5Voe36PFmhXxGC",
+                "SEGMENT_DEAD_LETTER_WRITE_KEY": "l6LNoFfNmuVhi9kEhsnAbz49VsHm0AmG",
+                "DEBUG": "true"
+            }
+        }
+    }
+}
+
+

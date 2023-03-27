@@ -1,2 +1,5 @@
 # reflekt-registry
-Lightweight serverless schema registry for event validation
+
+:warning: Under Construction :warning:
+
+A lightweight, serverless, schema registry to validate product analytics events.
