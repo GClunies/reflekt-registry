@@ -1,15 +1,12 @@
 import io
 import json
-import logging
 import os
-from pprint import pprint
 
 import boto3
+from loguru import logger
 
-_REGISTRY_BUCKET = os.environ.get("REGISTRY_BUCKET")
-_SCHEMA_REGISTRY = None
-
-logger = logging.getLogger("app")
+REGISTRY_BUCKET = os.environ.get("REGISTRY_BUCKET")
+SCHEMA_REGISTRY = None
 
 
 class S3SchemaRegistry:
@@ -21,15 +18,8 @@ class S3SchemaRegistry:
     """
 
     def __init__(self):
-        """Initialize S3 client and logger from AWS Chalice App.
-
-        Args:
-            logger (logging.Logger): Logger from AWS Chalice App.
-            debug (bool): Whether to enable debug logging. Defaults to False.
-        """
+        """Initialize S3 client for S3 schema registry."""
         self.s3 = boto3.client("s3")
-        # self.log = logger
-        # self.debug = debug
 
     def get_schema(self, schema_id: str) -> dict:
         """Get schema from registry based on provided schema ID.
@@ -40,19 +30,18 @@ class S3SchemaRegistry:
         Returns:
             dict: The schema.
         """
-        app.log.debug(f"Searching schema registry for schema ID: {schema_id}")
-        object_key = f"schemas/{schema_id}"
+        logger.debug(f"Searching schema registry for schema ID: {schema_id}")
 
-        app.log.debug(
-            f"Get schema from S3 bucket: {_REGISTRY_BUCKET} at path: {object_key}"
-        )
+        object_key = f"schemas/{schema_id}"
         bytes_buffer = io.BytesIO()
         self.s3.download_fileobj(
-            Bucket=_REGISTRY_BUCKET, Key=object_key, Fileobj=bytes_buffer
+            Bucket=REGISTRY_BUCKET, Key=object_key, Fileobj=bytes_buffer
         )
         byte_value = bytes_buffer.getvalue()
         schema = json.loads(byte_value.decode("utf-8"))
-        app.log.debug(f"Loaded schema from S3. Schema is: {schema}")
+
+        logger.debug(f"Found schema in S3 at '{REGISTRY_BUCKET}/{object_key}'.")
+        logger.debug(f"Schema is:\n{schema}")
 
         return schema
 
@@ -64,9 +53,16 @@ def get_s3_schema_registry() -> S3SchemaRegistry:
         S3SchemaRegistry: The S3 schema registry interface class to get schemas
             from S3 (uses boto3).
     """
-    global _SCHEMA_REGISTRY
+    logger.debug("Getting schema registry...")
+    global SCHEMA_REGISTRY
 
-    if _SCHEMA_REGISTRY is None:  # Initialize schema registry if necessary
-        _SCHEMA_REGISTRY = S3SchemaRegistry()
+    logger.debug("Checking for existing schema registry connection...")
 
-    return _SCHEMA_REGISTRY
+    if SCHEMA_REGISTRY is None:  # Initialize schema registry if necessary
+        logger.debug("Schema registry connection not found. Initializing...")
+        SCHEMA_REGISTRY = S3SchemaRegistry()
+        logger.debug("Schema registry initialized.")
+    else:
+        logger.debug("Schema registry already initialized.")
+
+    return SCHEMA_REGISTRY

@@ -14,8 +14,8 @@ def on_error(error):
     print("An error occurred:", error)
 
 
-def test_proxy_segment_v1_batch():
-    """Test the /v1/batch route."""
+def test_validate_segment():
+    """Test the /validate/segment route."""
     segment_analytics.write_key = "lwbDU8gfUFNfUrL8F3lWuCyhDtFstLiH"
     segment_analytics.host = (
         "https://ihaf299g16.execute-api.us-west-1.amazonaws.com/api/"

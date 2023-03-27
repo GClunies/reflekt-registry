@@ -1,9 +1,5 @@
-import logging
-
 from chalicelib.s3_registry import get_s3_schema_registry
 from jsonschema import Draft7Validator
-
-logger = logging.getLogger("app")
 
 
 def validate_event(schema_id: str, event_properties: dict) -> tuple[bool, list]:
