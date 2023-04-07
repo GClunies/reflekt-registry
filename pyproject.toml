@@ -4,7 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["Greg Clunies <greg.clunies@gmail.com>"]
 readme = "README.md"
-packages = [{include = "reflekt_registry"}]
+# packages = [{include = "reflekt_registry"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
