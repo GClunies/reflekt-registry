@@ -12,6 +12,11 @@
       "lambda_arn": "arn:aws:lambda:us-west-1:035502704754:function:reflekt-registry-dev"
     },
     {
+      "name": "segment_basic_auth",
+      "resource_type": "lambda_function",
+      "lambda_arn": "arn:aws:lambda:us-west-1:035502704754:function:reflekt-registry-dev-segment_basic_auth"
+    },
+    {
       "name": "rest_api",
       "resource_type": "rest_api",
       "rest_api_id": "ihaf299g16",

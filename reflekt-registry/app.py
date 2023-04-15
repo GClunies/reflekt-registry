@@ -2,7 +2,9 @@ import os
 import sys
 from datetime import datetime
 
-from chalice import Chalice
+from basicauth import decode
+from chalice import AuthResponse, AuthRoute, Chalice, Response
+from chalicelib.errors import log_segment_error
 from chalicelib.validator import validate_event
 from dateutil import parser
 from loguru import logger
@@ -43,18 +45,6 @@ logger.configure(  # Loguru config
 VALID_SEGMENT_WRITE_KEY = os.environ.get("VALID_SEGMENT_WRITE_KEY")
 INVALID_SEGMENT_WRITE_KEY = os.environ.get("INVALID_SEGMENT_WRITE_KEY")
 
-
-def log_segment_error(error):
-    """Log Segment error for debugging.
-
-    This function is passed to the Segment client as the on_error callback.
-
-    Args:
-        error (Any): The Segment error.
-    """
-    logger.error("Segment error:", error)
-
-
 # Send valid events to this Segment source
 segment_client_valid = SegmentClient(
     VALID_SEGMENT_WRITE_KEY,
@@ -70,18 +60,55 @@ segment_client_invalid = SegmentClient(
 )
 
 
+# Authentication Config
+@app.authorizer()
+def segment_basic_auth(auth_request) -> AuthResponse:
+    """Authenticate the request using Basic Auth.
+
+    Args:
+        auth_request (AuthRequest): The request to authenticate.
+
+    Returns:
+        AuthResponse: The response to the authentication request.
+    """
+    username, password = decode(auth_request.token)
+
+    # Check if the segment write key is valid
+    if username == VALID_SEGMENT_WRITE_KEY and password == "":
+        return AuthResponse(routes="/*", principal_id=username)
+
+    return AuthResponse(routes=[], principal_id=None)
+
+
 # API Routes
 @app.route("/")
 def index():
     """Return a welcome message.
 
     Returns:
-        str: The welcome message.
+        Response: The response to the request.
     """
-    return "🪞 Reflekt registry running! 🪞"
+    return Response(
+        status_code=200,
+        body={"hello": "Reflekt serverless registry!"},
+        headers={"Content-Type": "application/json"},
+    )
 
 
-@app.route("/v1/batch", methods=["POST"])
+def health_check() -> None:
+    """Return a health check response.
+
+    Returns:
+        Response: The response to the request.
+    """
+    return Response(
+        status_code=200,
+        body="🪞 Reflekt Registry running! 🪞",
+        headers={"Content-Type": "text/plain"},
+    )
+
+
+@app.route("/v1/batch", methods=["POST"], authorizer=segment_basic_auth)
 def validate_segment() -> None:
     """Validate Segment event(s) and forward to Segment Consumer.
 
@@ -179,4 +206,5 @@ def validate_segment() -> None:
     return None
 
 
+# TODO - pass back a response for testing
 # TODO - pass back a response for testing
