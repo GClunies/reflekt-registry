@@ -29,8 +29,8 @@ Setup the following environment variables in `reflekt-registry/.chalice/config.j
 |----------|-------------|
 | `REGISTRY_BUCKET` | The name of the S3 bucket that hosts schemas from your Reflekt project. |
 | `REGISTRY_BUCKET_REGION` | The name of the region where the S3 bucket is located. |
-| `VALID_SEGMENT_WRITE_KEY` | The write key for the Segment source where VALID events should be sent. |
-| `INVALID_SEGMENT_WRITE_KEY` | The write key for the Segment source where INVALID events should be sent. |
+| `SEGMENT_WRITE_KEY_VALID` | The write key for the Segment source where VALID events should be sent. |
+| `SEGMENT_WRITE_KEY_INVALID` | The write key for the Segment source where INVALID events should be sent. |
 | `DEBUG` | Set to `"true"` to enable debug logging to [AWS CloudWatch](https://aws.amazon.com/cloudwatch/). |
 
 ### Deploy
@@ -130,7 +130,7 @@ When sending events to a `reflekt-registry`, you **must include** the `schema_id
 }
 ```
 
-Valid events will be sent to the Segment consumer specified by `VALID_SEGMENT_WRITE_KEY`. Invalid events will be sent to the Segment consumer specified by `INVALID_SEGMENT_WRITE_KEY`.
+Valid events will be sent to the Segment consumer specified by `SEGMENT_WRITE_KEY_VALID`. Invalid events will be sent to the Segment consumer specified by `SEGMENT_WRITE_KEY_INVALID`.
 
 ## Producers
 Supported producers:
@@ -141,8 +141,8 @@ Supported producers:
 ## Consumers
 Supported consumers:
 - Segment [Sources](https://segment.com/docs/connections/sources/). By default, `reflekt-registry` is configure to:
-  - Send valid events to a Segment source with write key `VALID_SEGMENT_WRITE_KEY`
-  - Send invalid events to a Segment source with write key `INVALID_SEGMENT_WRITE_KEY`
+  - Send valid events to a Segment source with write key `SEGMENT_WRITE_KEY_VALID`
+  - Send invalid events to a Segment source with write key `SEGMENT_WRITE_KEY_INVALID`
 
 :eyes: More consumers to come! :eyes:
 

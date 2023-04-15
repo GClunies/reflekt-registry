@@ -11,6 +11,7 @@ from loguru import logger
 from rich.logging import RichHandler
 from rich.traceback import install
 from segment.analytics import Client as SegmentClient
+from segment.analytics.request import APIError
 
 # Chalice app config
 app = Chalice(app_name="reflekt-registry")
@@ -20,6 +21,10 @@ DEBUG = True if os.environ.get("DEBUG") == "true" else False
 LOGGING_LEVEL = "DEBUG" if DEBUG else "INFO"
 SHOW_LOCALS = True if os.environ.get("SHOW_LOCALS") == "true" else False
 install(show_locals=SHOW_LOCALS)  # Rich traceback config
+REGISTRY_WRITE_KEY = os.environ.get("REGISTRY_WRITE_KEY")
+SEGMENT_WRITE_KEY_VALID = os.environ.get("SEGMENT_WRITE_KEY_VALID")
+SEGMENT_WRITE_KEY_INVALID = os.environ.get("SEGMENT_WRITE_KEY_INVALID")
+
 
 # Logging Config
 logger.remove()  # Remove default loguru logger
@@ -41,25 +46,6 @@ logger.configure(  # Loguru config
 )
 
 
-# Segment Clients Config
-VALID_SEGMENT_WRITE_KEY = os.environ.get("VALID_SEGMENT_WRITE_KEY")
-INVALID_SEGMENT_WRITE_KEY = os.environ.get("INVALID_SEGMENT_WRITE_KEY")
-
-# Send valid events to this Segment source
-segment_client_valid = SegmentClient(
-    VALID_SEGMENT_WRITE_KEY,
-    debug=DEBUG,
-    on_error=log_segment_error,
-)
-
-# Send invalid events to this Segment source
-segment_client_invalid = SegmentClient(
-    INVALID_SEGMENT_WRITE_KEY,
-    debug=DEBUG,
-    on_error=log_segment_error,
-)
-
-
 # Authentication Config
 @app.authorizer()
 def segment_basic_auth(auth_request) -> AuthResponse:
@@ -74,7 +60,7 @@ def segment_basic_auth(auth_request) -> AuthResponse:
     username, password = decode(auth_request.token)
 
     # Check if the segment write key is valid
-    if username == VALID_SEGMENT_WRITE_KEY and password == "":
+    if username == REGISTRY_WRITE_KEY and password == "":
         return AuthResponse(routes="/*", principal_id=username)
 
     return AuthResponse(routes=[], principal_id=None)
@@ -108,6 +94,21 @@ def health_check() -> None:
     )
 
 
+# Segment client config
+segment_client_valid = SegmentClient(  # Valid events to this Segment source
+    SEGMENT_WRITE_KEY_VALID,
+    debug=DEBUG,
+    on_error=log_segment_error,
+)
+segment_client_invalid = SegmentClient(  # Invalid events to this Segment source
+    SEGMENT_WRITE_KEY_INVALID,
+    debug=DEBUG,
+    on_error=log_segment_error,
+)
+
+
+# TODO: maybe we should handle each track individually instead of batching?
+# Segment routes
 @app.route("/v1/batch", methods=["POST"], authorizer=segment_basic_auth)
 def validate_segment() -> None:
     """Validate Segment event(s) and forward to Segment Consumer.
@@ -198,13 +199,29 @@ def validate_segment() -> None:
             )
 
     # Flush clients after processing all events
-    logger.debug("Flushing Segment clients...")
-    segment_client_valid.flush()
-    segment_client_invalid.flush()
-    logger.debug("Done!")
+    try:
+        logger.debug("Flushing Segment clients...")
+        segment_client_valid.flush()
+        segment_client_invalid.flush()
+        logger.debug("Done!")
 
-    return None
+        return Response(
+            status_code=200,
+            body="data uploaded successfully",
+            headers={"Content-Type": "text/plain"},
+        )
 
+    except APIError as e:
+        logger.error(f"Error flushing Segment clients: {e}")
 
-# TODO - pass back a response for testing
-# TODO - pass back a response for testing
+        return Response(
+            status_code=e.code,
+            body={
+                "code": e.code,
+                "message": (
+                    f"Reflekt Registry received a Segment API error while "
+                    f"sending events to Segment. Error message: {e.message}"
+                ),
+            },
+            headers={"Content-Type": "application/json"},
+        )
