@@ -15,6 +15,7 @@ python-dateutil = "^2.8.2"
 jsonschema = "^4.17.3"
 loguru = "^0.6.0"
 rich = "^13.3.2"
+basicauth = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
 boto3 = "^1.26.87"

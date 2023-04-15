@@ -7,8 +7,9 @@
             "environment_variables": {
                 "REGISTRY_BUCKET": "reflekt-registry",
                 "REGISTRY_BUCKET_REGION": "us-west-1",
-                "VALID_SEGMENT_WRITE_KEY": "8ziNW9W9rkmyDQLGjc5Voe36PFmhXxGC",
-                "INVALID_SEGMENT_WRITE_KEY": "l6LNoFfNmuVhi9kEhsnAbz49VsHm0AmG",
+                "REGISTRY_WRITE_KEY": "devWriteKeyABC123",
+                "SEGMENT_WRITE_KEY_VALID": "8ziNW9W9rkmyDQLGjc5Voe36PFmhXxGC",
+                "SEGMENT_WRITE_KEY_INVALID": "l6LNoFfNmuVhi9kEhsnAbz49VsHm0AmG",
                 "DEBUG": "true"
             }
         }
