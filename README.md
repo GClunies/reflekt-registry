@@ -15,7 +15,7 @@ You will need:
 2. The [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html) installed and configured.
 3. A Reflekt project with schemas defined. See [Reflekt](https://github.com/GClunies/Reflekt) for details.
 4. An [AWS S3](https://aws.amazon.com/s3/) bucket to host schemas from your Reflekt project. See [here](https://docs.aws.amazon.com/AmazonS3/latest/gsg/CreatingABucket.html) for instructions on creating an S3 bucket.
-5. To `reflekt push` schemas from your Reflekt project to your S3 bucket. See these Reflekt [docs](https://github.com/GClunies/Reflekt#interacting-with-schema-registries) for details.
+5. Run `reflekt push` to push schemas from your Reflekt project to your S3 bucket. See these Reflekt [docs](https://github.com/GClunies/Reflekt#interacting-with-schema-registries) for details.
 6. To clone this repo, `git clone https://github.com/GClunies/reflekt-registry.git`.
 7. To create a virtual environment.
    - This repo contains a `pyproject.toml` file, so you can use `poetry` to create a virtual environment.
@@ -50,7 +50,7 @@ Resources deployed:
 ```
 Chalice handles creating IAM roles, the Lambda function, and API Gateway endpoint for you. You can view these resources in the [AWS Console](https://console.aws.amazon.com/).
 
-:siren: After your first deploy only :siren: - you will need to grant your Lambda IAM role (`reflekt-registry-dev` in example above) permission to access your S3 bucket. For instructions on how to add a policy to an IAM role, see [here](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_manage-attach-detach.html#add-policies-console) (read section **To embed an inline policy for a user or role (console)**). Add this policy to your IAM role:
+*After your first deploy only* - you will need to grant your Lambda IAM role (`reflekt-registry-dev` in example above) permission to access your S3 bucket. For instructions on how to add a policy to an IAM role, see [here](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_manage-attach-detach.html#add-policies-console) (read section **To embed an inline policy for a user or role (console)**). Add this policy to your IAM role:
 ```
 {
     "Version": "2012-10-17",
