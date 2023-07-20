@@ -1,7 +1,5 @@
 # reflekt-registry
 
-:warning: Under Construction - not suitable for use :warning:
-
 A lightweight, serverless, schema registry to host schemas for product analytics events defined in a [Reflekt](https://github.com/GClunies/Reflekt) project. Compatible with popular event [producers](#producers) and [consumers](#consumers).
 
 > Currently, `reflekt-registry` is focused on supporting [Segment](https://segment.com/) as a producer and consumer. Support for more producers and consumers is on the way.
